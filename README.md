@@ -27,7 +27,7 @@
 
 ```powershell
 python -m venv .venv
-.\venv\Scripts\activate
+.\.venv\Scripts\activate
 ```
 
 ### 2. 安装依赖
