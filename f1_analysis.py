@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import fastf1
 import matplotlib.pyplot as plt
@@ -28,7 +28,7 @@ def load_session(year: int, event: str, session_type: str, cache_dir: Path):
     return session
 
 
-def get_fastest_laps(session, drivers: Sequence[str]) -> dict[str, object]:
+def get_fastest_laps(session, drivers: Sequence[str]) -> dict[str, Any]:
     """取得每位车手的最快有效圈，缺少数据时给出明确错误。"""
     fastest_laps = {}
     for driver in drivers:
@@ -57,7 +57,7 @@ def _gear_shift_count(telemetry: pd.DataFrame) -> int:
     return int(gears.ne(gears.shift()).sum() - 1)
 
 
-def build_summary_table(laps: Mapping[str, object]) -> pd.DataFrame:
+def build_summary_table(laps: Mapping[str, Any]) -> pd.DataFrame:
     """生成可导出的最快圈量化摘要；第一位车手作为圈速差基准。"""
     rows = []
     reference_lap_time = next(iter(laps.values()))["LapTime"]
@@ -90,7 +90,7 @@ def save_summary(summary: pd.DataFrame, output_path: Path) -> None:
 # --- 遥测与赛道可视化 -----------------------------------------------------
 
 def plot_telemetry(
-    laps: Mapping[str, object], output_path: Path, colors: Sequence[str], xlim: Sequence[float] | None, show: bool
+    session, laps: Mapping[str, Any], output_path: Path, colors: Sequence[str], xlim: Sequence[float] | None, show: bool
 ) -> None:
     """绘制速度、油门和刹车三联图。"""
     fig, axes = plt.subplots(3, 1, figsize=(13, 10), sharex=True)
@@ -101,10 +101,23 @@ def plot_telemetry(
         telemetry = lap.get_telemetry()
         color = colors[index % len(colors)]
         distance = telemetry["Distance"]
+        
+        # 基础折线
         axes[0].plot(distance, telemetry["Speed"], label=driver, color=color, linewidth=2)
         axes[1].plot(distance, telemetry["Throttle"], label=driver, color=color, linewidth=1.5)
-        # Brake 是布尔信号；阶梯图比连线更忠实地表达制动状态切换。
         axes[2].step(distance, telemetry["Brake"].astype(int), label=driver, color=color, linewidth=1.25, where="post")
+        
+        # 标注制动点（Brake 从 False 变 True 的时刻）
+        brake = telemetry["Brake"].fillna(False).astype(bool)
+        brake_points = telemetry[brake & ~brake.shift(fill_value=False)]
+        brake_label = "Brake point" if index == 0 else "_nolegend_"
+        axes[0].scatter(brake_points["Distance"], brake_points["Speed"], color=color, marker='v', s=30, zorder=5, label=brake_label)
+        
+        # 标注油门恢复点（Throttle 从 0 变大于 0 的时刻）
+        throttle = telemetry["Throttle"]
+        throttle_starts = telemetry[(throttle > 0) & (throttle.shift(fill_value=100) == 0)]
+        throttle_label = "Throttle point" if index == 0 else "_nolegend_"
+        axes[0].scatter(throttle_starts["Distance"], throttle_starts["Speed"], color=color, marker='^', s=30, zorder=5, label=throttle_label)
 
     axes[0].set_ylabel("Speed (km/h)")
     axes[1].set_ylabel("Throttle (%)")
@@ -119,6 +132,16 @@ def plot_telemetry(
     if xlim:
         axes[2].set_xlim(xlim)
 
+    # 绘制弯角编号与参考线
+    circuit_info = session.get_circuit_info()
+    if circuit_info is not None and hasattr(circuit_info, 'corners'):
+        y_max = axes[0].get_ylim()[1]
+        for _, corner in circuit_info.corners.iterrows():
+            for axis in axes:
+                axis.axvline(x=corner.Distance, color='gray', linestyle='--', alpha=0.4, zorder=0)
+            axes[0].text(corner.Distance, y_max, str(corner.Number), 
+                         rotation=0, ha='center', va='bottom', fontsize=9)
+
     fig.tight_layout()
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     if show:
@@ -126,7 +149,7 @@ def plot_telemetry(
     plt.close(fig)
 
 
-def plot_track_speed_delta(reference_lap, comparison_lap, output_path: Path, show: bool) -> None:
+def plot_track_speed_delta(session, reference_lap, comparison_lap, output_path: Path, show: bool) -> None:
     """以第一位车手减第二位车手的速度差为颜色，绘制赛道地图。"""
     reference = reference_lap.get_telemetry().sort_values("Distance")
     comparison = comparison_lap.get_telemetry().sort_values("Distance")
@@ -144,8 +167,10 @@ def plot_track_speed_delta(reference_lap, comparison_lap, output_path: Path, sho
     # 两圈采样点不完全一致，按共同的赛道距离插值后再比较速度。
     speed_delta = reference["Speed"].to_numpy() - comparison_speed
 
+    # pyrefly: ignore [bad-argument-count, bad-argument-type]
     points = np.column_stack((reference["X"], reference["Y"])).reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    # pyrefly: ignore [bad-index, no-matching-overload]
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)    
     delta_by_segment = (speed_delta[:-1] + speed_delta[1:]) / 2
     # 使用 98 分位而非最大值，避免个别遥测尖峰压缩整张地图的颜色对比。
     limit = max(5.0, float(np.nanpercentile(np.abs(delta_by_segment), 98)))
@@ -162,6 +187,15 @@ def plot_track_speed_delta(reference_lap, comparison_lap, output_path: Path, sho
     axis.autoscale()
     axis.set_aspect("equal", adjustable="box")
     axis.axis("off")
+    
+    # 标注弯角编号
+    circuit_info = session.get_circuit_info()
+    if circuit_info is not None and hasattr(circuit_info, 'corners'):
+        for _, corner in circuit_info.corners.iterrows():
+            axis.text(corner.X, corner.Y, str(corner.Number), color='black', 
+                      fontsize=9, ha='center', va='center',
+                      bbox=dict(boxstyle='circle,pad=0.2', facecolor='white', alpha=0.7, edgecolor='none'))
+                      
     reference_driver = reference_lap["Driver"]
     comparison_driver = comparison_lap["Driver"]
     axis.set_title(f"Track speed delta: {reference_driver} − {comparison_driver}")

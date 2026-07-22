@@ -54,8 +54,8 @@ def main() -> None:
 
     # 先保存可复用的数值结果，再输出面向人工复盘的图表。
     save_summary(summary, summary_path)
-    plot_telemetry(laps, telemetry_path, DEFAULT_COLORS, xlim=args.xlim, show=args.show)
-    plot_track_speed_delta(laps[args.drivers[0]], laps[args.drivers[1]], track_map_path, show=args.show)
+    plot_telemetry(session, laps, telemetry_path, DEFAULT_COLORS, xlim=args.xlim, show=args.show)
+    plot_track_speed_delta(session, laps[args.drivers[0]], laps[args.drivers[1]], track_map_path, show=args.show)
 
     print("\n最快圈量化摘要：")
     print(summary.to_string(index=False))
