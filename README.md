@@ -63,7 +63,7 @@ python main.py --year 2024 --event Bahrain --session Q --drivers VER LEC --xlim 
 ## 后续规划
 
 - [x] 增加弯角编号、制动点和油门恢复点标注
-- [ ] 增加轮胎、天气和赛道状态等可比性上下文
+- [x] 增加轮胎、天气和赛道状态等可比性上下文
 - [ ] 增加交互式 Web 界面与多圈/长距离比赛分析
 
 🏎️🏎️🏎️🏎️🏎️

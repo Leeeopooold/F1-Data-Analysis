@@ -23,8 +23,8 @@ def load_session(year: int, event: str, session_type: str, cache_dir: Path):
     cache_dir.mkdir(parents=True, exist_ok=True)
     fastf1.Cache.enable_cache(str(cache_dir))
     session = fastf1.get_session(year, event, session_type)
-    # 位置与遥测数据是地图和曲线所必需的；天气和消息不参与本次计算。
-    session.load(telemetry=True, weather=False, messages=False)
+    # 增加天气数据的加载以提供可比性上下文
+    session.load(telemetry=True, weather=True, messages=False)
     return session
 
 
@@ -64,6 +64,7 @@ def build_summary_table(laps: Mapping[str, Any]) -> pd.DataFrame:
     for driver, lap in laps.items():
         telemetry = lap.get_telemetry()
         lap_time = lap["LapTime"]
+        weather = lap.get_weather_data()
         rows.append(
             {
                 "Driver": driver,
@@ -72,6 +73,10 @@ def build_summary_table(laps: Mapping[str, Any]) -> pd.DataFrame:
                 "Sector 1": _format_timedelta(lap["Sector1Time"]),
                 "Sector 2": _format_timedelta(lap["Sector2Time"]),
                 "Sector 3": _format_timedelta(lap["Sector3Time"]),
+                "Compound": lap["Compound"],
+                "Tyre life": lap["TyreLife"],
+                "Air temp (°C)": round(weather["AirTemp"], 1) if pd.notna(weather["AirTemp"]) else "—",
+                "Track temp (°C)": round(weather["TrackTemp"], 1) if pd.notna(weather["TrackTemp"]) else "—",
                 "Top speed (km/h)": round(float(telemetry["Speed"].max()), 1),
                 "Average speed (km/h)": round(float(telemetry["Speed"].mean()), 1),
                 "Full throttle (%)": round(float((telemetry["Throttle"] >= 99).mean() * 100), 1),
@@ -95,17 +100,29 @@ def plot_telemetry(
     """绘制速度、油门和刹车三联图。"""
     fig, axes = plt.subplots(3, 1, figsize=(13, 10), sharex=True)
     drivers = list(laps)
-    fig.suptitle(f"{' vs '.join(drivers)} — Telemetry Comparison", fontsize=16)
+    
+    # 顶部标题包含对比车手与天气上下文
+    ref_lap = next(iter(laps.values()))
+    weather = ref_lap.get_weather_data()
+    title_text = f"{' vs '.join(drivers)} — Telemetry Comparison"
+    if not weather.empty:
+        weather_text = f"Air: {weather.get('AirTemp', '—')}°C | Track: {weather.get('TrackTemp', '—')}°C | Humidity: {weather.get('Humidity', '—')}%"
+        title_text += f"\n{weather_text}"
+    fig.suptitle(title_text, fontsize=14)
 
     for index, (driver, lap) in enumerate(laps.items()):
         telemetry = lap.get_telemetry()
         color = colors[index % len(colors)]
         distance = telemetry["Distance"]
         
+        # 将轮胎信息加入图例
+        tyre_life = int(lap["TyreLife"]) if pd.notna(lap["TyreLife"]) else "?"
+        driver_label = f"{driver} ({lap['Compound']}, L{tyre_life})"
+        
         # 基础折线
-        axes[0].plot(distance, telemetry["Speed"], label=driver, color=color, linewidth=2)
-        axes[1].plot(distance, telemetry["Throttle"], label=driver, color=color, linewidth=1.5)
-        axes[2].step(distance, telemetry["Brake"].astype(int), label=driver, color=color, linewidth=1.25, where="post")
+        axes[0].plot(distance, telemetry["Speed"], label=driver_label, color=color, linewidth=2)
+        axes[1].plot(distance, telemetry["Throttle"], label=driver_label, color=color, linewidth=1.5)
+        axes[2].step(distance, telemetry["Brake"].astype(int), label=driver_label, color=color, linewidth=1.25, where="post")
         
         # 标注制动点（Brake 从 False 变 True 的时刻）
         brake = telemetry["Brake"].fillna(False).astype(bool)
@@ -198,7 +215,14 @@ def plot_track_speed_delta(session, reference_lap, comparison_lap, output_path: 
                       
     reference_driver = reference_lap["Driver"]
     comparison_driver = comparison_lap["Driver"]
-    axis.set_title(f"Track speed delta: {reference_driver} − {comparison_driver}")
+    
+    # 标题增加天气与轮胎上下文
+    weather = reference_lap.get_weather_data()
+    title_lines = [f"Track speed delta: {reference_driver} ({reference_lap['Compound']}) − {comparison_driver} ({comparison_lap['Compound']})"]
+    if not weather.empty:
+        title_lines.append(f"Air: {weather.get('AirTemp', '—')}°C | Track: {weather.get('TrackTemp', '—')}°C")
+    axis.set_title("\n".join(title_lines), fontsize=12)
+    
     colorbar = fig.colorbar(collection, ax=axis, shrink=0.8, pad=0.03)
     colorbar.set_label("Speed delta (km/h)")
     fig.tight_layout()
