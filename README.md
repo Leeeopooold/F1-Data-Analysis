@@ -2,7 +2,7 @@
 
 这是一个基于 Python 与 FastF1 的一级方程式赛车（F1）遥测数据分析工具，用于量化对比不同车手的最快圈表现。
 
-![alt text](showcase/2024_Bahrain_Q_VER_vs_LEC_vs_SAI_vs_PER_telemetry.png)
+![alt text](<showcase/2024_Bahrain_Q_VER_vs_LEC_vs_SAI_vs_PER_telemetry copy.png>)
 
 ![alt text](showcase/2024_Bahrain_Q_VER_vs_LEC_vs_SAI_vs_PER_track_speed_delta.png)
 
