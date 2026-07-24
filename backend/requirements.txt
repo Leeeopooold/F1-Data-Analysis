@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pydantic
+fastf1
+pandas
+numpy

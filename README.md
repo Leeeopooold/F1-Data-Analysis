@@ -1,69 +1,95 @@
-# F1 Data Analysis
+# F1 Data Dynamics (一级方程式赛车遥测与正赛长距离分析平台)
 
-这是一个基于 Python 与 FastF1 的一级方程式赛车（F1）遥测数据分析工具，用于量化对比不同车手的最快圈表现。
+这是一个基于 **Python (FastAPI)** 与 **React (Vite)** 的现代化 F1 赛车数据分析与可视化 Web 应用程序。利用 FastF1 深度挖掘一级方程式赛车的遥测数据与正赛节奏，为赛车爱好者和数据分析师提供高颜值、交互式的复盘工具。
 
-![alt text](<showcase/2024_Bahrain_Q_VER_vs_LEC_vs_SAI_vs_PER_telemetry copy.png>)
+## 功能展示
 
-![alt text](showcase/2024_Bahrain_Q_VER_vs_LEC_vs_SAI_vs_PER_track_speed_delta.png)
+![alt text](showcase/image.png)
+
+![alt text](<showcase/image copy 2.png>)
+
+![alt text](<showcase/image copy.png>)
 
 ## 核心功能
 
-- **参数化数据接入**：可指定赛季、分站、比赛阶段和两位以上车手。
-- **最快圈遥测对比**：叠加展示速度、油门与刹车状态，支持按赛道距离聚焦局部路段。
-- **量化结论**：导出圈速、分段、最高/平均速度、全油门比例、制动次数与换挡次数的 CSV 摘要。
-- **赛道地图**：以第一位车手减第二位车手的速度差着色，直观定位性能差异区段。
-- **本地缓存**：FastF1 下载结果保存在 `f1_cache/`，提升重复分析速度。
+- 🏎️ **交互式单圈遥测对比 (Qualifying / Fastest Lap)**：
+  - 在线的油门、刹车、速度三联图，支持动态 Hover 查看精细数值。
+  - 自动标注赛道弯角编号与距离，直观对比不同车手在刹车点与加油点的表现差异。
+  - 自动计算速度差及车手最快圈量化摘要（最高速度、平均速度、全油门比例等）。
+
+- 🏁 **多圈正赛长距离节奏分析 (Race Pace Analysis)**：
+  - 绘制整场比赛（或特定 Stint）圈速散点图，直观展现车手长跑节奏（Race Pace）与轮胎衰退曲线（Tyre Degradation）。
+  - 自动去除进出站（In/Out Laps）及安全车（VSC/SC）等非正常圈速的干扰。
+
+- 💎 **可视化交互界面**：
+  - 采用前后端分离架构，配合深色模式（Dark Mode）与玻璃拟物化（Glassmorphism）视觉设计。
+  - 灵活的参数设置：自由选择赛季年份、大奖赛分站、比赛阶段（Q/R/FP）及多车手对比。
 
 ## 技术栈
 
-- **语言**: Python 3.10+
-- **关键库**: `fastf1`, `pandas`, `matplotlib`
-- **编辑器**: VS Code
-- **环境管理**: Python Virtual Environment
+- **后端 (Backend)**: Python 3.10+, FastAPI, Uvicorn, FastF1, Pandas, NumPy
+- **前端 (Frontend)**: React, Vite, Recharts, Lucide React, Vanilla CSS (Glassmorphism design tokens)
+- **环境管理**: Python Virtual Environment (`.venv`), Node.js (npm)
 
-## 启动
+## 项目结构
 
-### 1. 环境准备 (Windows)
+```text
+├── backend/            # FastAPI 后端应用与 FastF1 分析引擎
+│   ├── main.py         # RESTful API 入口
+│   ├── f1_analysis.py  # 遥测数据提取与 Race Pace 逻辑
+│   ├── cli.py          # 兼容原有的命令行脚本
+│   └── requirements.txt# 后端依赖清单
+├── frontend/           # Vite + React 前端应用
+│   ├── src/
+│   │   ├── components/ # 交互图表组件 (TelemetryChart, RacePaceChart)
+│   │   ├── App.jsx     # 主仪表盘视图
+│   │   └── index.css   # 全局 UI 样式与设计变量
+│   └── package.json
+└── f1_cache/           # FastF1 本地缓存目录
+```
 
-建议在 VS Code 中创建虚拟环境以保持环境纯净：
+## 快速启动
+
+### 1. 启动后端 API 服务
+
+打开一个终端窗口，激活虚拟环境并运行 FastAPI 后端：
 
 ```powershell
-python -m venv .venv
+# 进入后端目录（或在根目录激活环境）
 .\.venv\Scripts\activate
+
+# 安装后端依赖（若尚未安装）
+pip install -r backend/requirements.txt
+
+# 启动 API 服务
+cd backend
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2. 安装依赖
+_后端 API 文档可访问 [http://localhost:8000/docs](http://localhost:8000/docs)_
+
+### 2. 启动前端 Web 界面
+
+打开第二个终端窗口，启动 Vite 开发服务器：
 
 ```powershell
-pip install -r requirements.txt
+cd frontend
+
+# 安装前端依赖（若尚未安装）
+npm install
+
+# 启动前端 App
+npm run dev
 ```
 
-### 3. 运行分析
+在浏览器中打开 **[http://localhost:5173/](http://localhost:5173/)** 即可使用完整的 Web 分析平台
 
-默认分析 2024 巴林站排位赛的 VER 与 LEC：
+---
 
-```powershell
-python main.py
-```
-
-指定比赛和车手，并只查看 400–1200 米区间：
-
-```powershell
-python main.py --year 2024 --event Bahrain --session Q --drivers VER LEC --xlim 400 1200
-```
-
-结果默认写入 `output/`：
-
-- `*_summary.csv`：量化指标；第一位车手是圈速差和地图速度差的基准。
-- `*_telemetry.png`：速度、油门、刹车三联图。
-- `*_track_speed_delta.png`：赛道速度差地图，红色表示第一位车手更快，蓝色表示第二位车手更快。
-
-**注意**：首次运行会下载几十MB的数据，请确保网络通畅。
-
-## 后续规划
+## 路线图 (Roadmap)
 
 - [x] 增加弯角编号、制动点和油门恢复点标注
 - [x] 增加轮胎、天气和赛道状态等可比性上下文
-- [ ] 增加交互式 Web 界面与多圈/长距离比赛分析
+- [x] 增加交互式 Web 界面与多圈/长距离比赛分析
 
-🏎️🏎️🏎️🏎️🏎️
+🏎️🏁💨

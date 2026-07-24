@@ -1,15 +1,11 @@
 import fastf1
-fastf1.Cache.enable_cache('f1_cache')
-session = fastf1.get_session(2024, 'Bahrain', 'Q')
-session.load(telemetry=True, weather=True, messages=False)
-lap = session.laps.pick_driver('VER').pick_fastest()
+import pandas as pd
+from fastf1 import Cache
+Cache.enable_cache('e:/F1/f1_cache')
 
-print(f"Driver: VER")
-# pyrefly: ignore [unsupported-operation]
-print(f"Tyre Compound: {lap['Compound']}")
-# pyrefly: ignore [unsupported-operation]
-print(f"Tyre Life: {lap['TyreLife']}")
-# pyrefly: ignore [missing-attribute]
-weather = lap.get_weather_data()
-print("Weather Data:")
-print(weather)
+session = fastf1.get_session(2026, "British Grand Prix", "R")
+session.load()
+ver_laps = session.laps.pick_driver('VER')
+print("Session Name:", session.event['EventName'], session.name)
+print("Total Laps for VER:", len(ver_laps))
+print("Results:", session.results[['Abbreviation', 'Position', 'Status']])
